@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: event-ticketing-platform
+  profiles:
+    default: dev
+
+server:
+  port: 8080

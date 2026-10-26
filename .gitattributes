@@ -1,0 +1,12 @@
+# Store text files with LF in the repository and check them out with LF on every platform,
+# regardless of each developer's core.autocrlf setting.
+* text=auto eol=lf
+
+# Unix shell scripts fail with CRLF line endings ("$'\r': command not found").
+*.sh text eol=lf
+mvnw text eol=lf
+
+# Windows-only scripts keep CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.example.booking</groupId>
+        <artifactId>event-ticketing-platform</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>booking-service</artifactId>
+    <name>Booking Service</name>
+    <description>Application services (use cases) that orchestrate the domain model</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.example.booking</groupId>
+            <artifactId>booking-domain</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-service-boundaries</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <excludes>
+                                        <exclude>org.springframework:spring-web</exclude>
+                                        <exclude>org.springframework:spring-webmvc</exclude>
+                                        <exclude>org.springframework:spring-webflux</exclude>
+                                        <exclude>jakarta.servlet*</exclude>
+                                        <exclude>org.apache.tomcat.embed:tomcat-embed-core</exclude>
+                                    </excludes>
+                                    <message>booking-service must not depend on the web layer (Spring MVC, Servlet API, embedded Tomcat). HTTP concerns belong in booking-api.</message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
