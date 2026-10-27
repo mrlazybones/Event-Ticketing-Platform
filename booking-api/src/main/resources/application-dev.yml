@@ -1,3 +1,16 @@
+# Local placeholders. A shared or production database must set DB_URL, DB_USERNAME and DB_PASSWORD.
+# Spring Boot does not read a .env file. The dev scripts export .env before they start Java.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/event_ticketing}
+    username: ${DB_USERNAME:event_ticketing}
+    password: ${DB_PASSWORD:event_ticketing}
+    hikari:
+      pool-name: booking-dev
+      maximum-pool-size: 5
+      connection-timeout: 5000
+
 logging:
   level:
     com.example.booking: DEBUG
+    org.hibernate.SQL: DEBUG

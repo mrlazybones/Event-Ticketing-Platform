@@ -13,7 +13,7 @@ $MavenArgs = @($args)
 
 Invoke-FromRepositoryRoot {
     $null = Get-JavaExecutable
-    Write-Step 'Running all automated tests'
+    Write-Step 'Running database-independent tests (PostgreSQL integration tests run from verify)'
     Invoke-Maven -Arguments (@('test') + $MavenArgs) `
         -FailureMessage 'Tests failed. See the Maven output above and the reports in *\target\surefire-reports\.'
     Write-Step 'All tests passed.'

@@ -12,12 +12,34 @@
 
     <artifactId>booking-service</artifactId>
     <name>Booking Service</name>
-    <description>Application services (use cases) that orchestrate the domain model</description>
+    <description>Application services, transactions and persistence infrastructure</description>
 
     <dependencies>
         <dependency>
             <groupId>com.example.booking</groupId>
             <artifactId>booking-domain</artifactId>
+        </dependency>
+        <!-- Hibernate, Spring Data and the JDBC transaction manager. Versions come from the Spring Boot BOM. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <!-- JDBC driver. Runtime scope: the code depends on JDBC interfaces, and the boot JAR still packages it. -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- Schema migrations. The code injects Flyway, so this stays on the compile classpath. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <!-- Flyway 10+ discovers database support from this module. It is not referenced from Java. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>runtime</scope>
         </dependency>
     </dependencies>
 

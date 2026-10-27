@@ -8,4 +8,8 @@ record HealthResponse(String status) {
     static HealthResponse up() {
         return new HealthResponse("UP");
     }
+
+    static HealthResponse down() {
+        return new HealthResponse("DOWN");
+    }
 }

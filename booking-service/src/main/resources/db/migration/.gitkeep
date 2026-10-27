@@ -1,0 +1,1 @@
+# Keeps this directory in Git and on the classpath. Flyway only runs files named V<version>__<description>.sql.
