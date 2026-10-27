@@ -90,6 +90,70 @@ function Import-DotEnv {
     return $previous
 }
 
+function Require-Docker {
+    if (-not (Get-Command docker -CommandType Application -ErrorAction SilentlyContinue)) {
+        throw 'Docker was not found. Install Docker Desktop, start it, and retry.'
+    }
+    $savedPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & docker compose version | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "The Docker Compose plugin is not available. Use 'docker compose', which comes with Docker Desktop."
+        }
+        & docker info | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Docker is installed but the engine is not running. Start Docker Desktop and retry.'
+        }
+    } finally {
+        $ErrorActionPreference = $savedPreference
+    }
+}
+
+function Invoke-DockerCompose([string[]] $Arguments) {
+    Write-Step "docker compose $($Arguments -join ' ')"
+    $savedPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & docker compose @Arguments
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $savedPreference
+    }
+    if ($exitCode -ne 0) {
+        throw "docker compose $($Arguments -join ' ') failed."
+    }
+}
+
+function Wait-PostgresHealthy {
+    $timeoutSeconds = if ($env:DB_READY_TIMEOUT_SECONDS) { [int] $env:DB_READY_TIMEOUT_SECONDS } else { 60 }
+    $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+    Write-Step "Waiting up to $timeoutSeconds s for the PostgreSQL health check"
+    while ((Get-Date) -lt $deadline) {
+        $savedPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $id = @( & docker compose ps -q postgres ) | Select-Object -First 1
+            $status = $null
+            if ($id) {
+                $status = docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id".Trim()
+            }
+        } finally {
+            $ErrorActionPreference = $savedPreference
+        }
+        if ($id) {
+            if ($status -eq 'healthy') {
+                return
+            }
+            if ($status -eq 'unhealthy') {
+                throw 'PostgreSQL is unhealthy. Run .\scripts\db-logs.ps1'
+            }
+        }
+        Start-Sleep -Seconds 2
+    }
+    throw "PostgreSQL did not become healthy within $timeoutSeconds s. Run .\scripts\db-logs.ps1"
+}
+
 function Restore-Environment([hashtable] $Previous) {
     foreach ($name in $Previous.Keys) {
         [Environment]::SetEnvironmentVariable($name, $Previous[$name], 'Process')

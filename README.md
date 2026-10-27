@@ -7,8 +7,8 @@ runnable, tested and documented.
 
 | | |
 |---|---|
-| **Current milestone** | 2 - PostgreSQL connectivity (done locally) |
-| **Next milestone** | 3 - Dockerized PostgreSQL for local development |
+| **Current milestone** | 3 - Dockerized PostgreSQL (done locally) |
+| **Next milestone** | 4 - Schema migrations and seed data |
 
 ## Scope of Milestone 1
 
@@ -41,7 +41,7 @@ control, payments, Redis and Kafka. They are planned for later milestones (see [
 | Database | PostgreSQL and its JDBC driver | server 17, driver 42.7.11 | in use |
 | Migrations | Flyway | 11.7.2 | configured; no business migrations yet |
 | Integration tests | Testcontainers | 1.21.4 | in use |
-| Local infrastructure | Docker Compose | - | Milestone 3 |
+| Local infrastructure | Docker Compose | Compose v2 (`docker compose`) | in use, PostgreSQL only |
 
 All library and plugin versions except Spring Boot and the Maven Wrapper come from the Spring Boot
 BOM, so later milestones add dependencies without writing version numbers.
@@ -54,11 +54,9 @@ BOM, so later milestones add dependencies without writing version numbers.
 - Internet access for the first build (Maven and the dependencies are cached in `~/.m2`).
 - `curl` for `scripts/verify.sh` (preinstalled on macOS, most Linux distributions and Git Bash).
 - Windows: PowerShell 5.1 or newer (built in). Git Bash or WSL can run the `.sh` scripts as well.
-- **PostgreSQL 17** for running the application. Database-independent tests do not need it.
-  `scripts/verify.*` runs the PostgreSQL integration tests with Docker (Testcontainers) and, when a
-  server is already listening, also starts the packaged JAR against that server.
-- Docker Compose is not part of this milestone. A one-off `docker run` is documented below as a way
-  to get a temporary database; installing PostgreSQL directly works too.
+- **Docker Desktop** (or another engine with the `docker compose` plugin) for the local database.
+  Database-independent tests do not need it. `scripts/verify.*` runs integration tests with
+  Testcontainers, which is a separate PostgreSQL from the Compose one.
 
 ## Directory structure
 
@@ -79,62 +77,41 @@ event-ticketing-platform/
 |   |   `-- api/health/   liveness and database readiness endpoints
 |   |-- src/main/resources/    application.yml, application-dev.yml
 |   `-- src/test/java/com/example/booking/
-|-- scripts/                   dev, build, test, verify (.sh for bash, .ps1 for PowerShell)
+|-- compose.yaml               local PostgreSQL only
+|-- scripts/                   dev, build, test, verify, db-up, db-down, db-reset, db-status, db-logs
 |-- .github/workflows/ci.yml   CI on Linux and Windows
 `-- .editorconfig, .gitattributes, .gitignore, .env.example
 ```
 
 ## PostgreSQL
 
-The `dev` profile expects a database named `event_ticketing` on `localhost:5432`, owned by the user
-`event_ticketing` with the same password. Those values are local placeholders, not production
-credentials. Do not reuse them anywhere except on your own machine.
+Start Docker Desktop, then start the database. The application stays on the host. It connects to
+`127.0.0.1` and the published port, which defaults to `5432`.
 
-Spring Boot does **not** read a `.env` file. `scripts/dev.ps1` and `scripts/dev.sh` export `.env`
-into the process they start. `application-dev.yml` then reads `DB_URL`, `DB_USERNAME` and
-`DB_PASSWORD`, and uses the placeholders above when a variable is missing. An IDE run does not see
-`.env` unless you set the same variables in the IDE; without them, the placeholders are used.
+| | Windows PowerShell | Linux / macOS / Git Bash / WSL |
+|---|---|---|
+| Start and wait until healthy | `.\scripts\db-up.ps1` | `./scripts/db-up.sh` |
+| Status | `.\scripts\db-status.ps1` | `./scripts/db-status.sh` |
+| Recent logs | `.\scripts\db-logs.ps1` | `./scripts/db-logs.sh` |
+| Follow logs | `.\scripts\db-logs.ps1 -Follow` | `./scripts/db-logs.sh --follow` |
+| Stop, keep the data | `.\scripts\db-down.ps1` | `./scripts/db-down.sh` |
+| Erase the data | `.\scripts\db-reset.ps1 -Force` | `./scripts/db-reset.sh --yes` |
 
-### Windows, installed PostgreSQL
+`db-up` returns only after `pg_isready` reports healthy, or it fails within 60 seconds
+(`DB_READY_TIMEOUT_SECONDS` changes that). `db-down` stops the container and keeps the volume
+`event-ticketing-postgres`. `db-reset` without `-Force` or `--yes` refuses to run.
 
-After the installer from [postgresql.org](https://www.postgresql.org/download/windows/) finishes,
-its `psql` is usually `C:\Program Files\PostgreSQL\17\bin\psql.exe`. Connect as the superuser you
-created during setup and run:
+The database name, user and password are the local placeholders `event_ticketing`. They are not
+production credentials. Copy `.env.example` to `.env` to change them. `DB_NAME` and `DB_HOST_PORT`
+are for Compose. `DB_URL` is for Spring Boot, and its port and database name must match those two.
+Compose reads `.env` by itself. Spring Boot does not: `scripts/dev.ps1` and `scripts/dev.sh` export
+it, and an IDE launch does not.
 
-```sql
-CREATE USER event_ticketing WITH PASSWORD 'event_ticketing';
-CREATE DATABASE event_ticketing OWNER event_ticketing;
-```
+Inside another container, `localhost` is that container, not your machine. A future app container
+would use hostname `postgres` and port `5432` (the container port). This milestone does not run the
+application in Docker.
 
-### Windows, a temporary Docker container
-
-This is a manual command, not a project script. Docker Desktop has to be running.
-
-```powershell
-docker run -d --name event-ticketing-postgres -p 5432:5432 `
-  -e POSTGRES_USER=event_ticketing `
-  -e POSTGRES_PASSWORD=event_ticketing `
-  -e POSTGRES_DB=event_ticketing `
-  postgres:17-alpine
-```
-
-Stop it with `docker rm -f event-ticketing-postgres`.
-
-### WSL Ubuntu
-
-The `.sh` scripts are what you run inside WSL. PostgreSQL from Ubuntu 20.04's packages is older
-than 17 and is still fine for this milestone:
-
-```bash
-sudo apt update
-sudo apt install -y postgresql postgresql-contrib
-sudo service postgresql start
-sudo -u postgres psql -c "CREATE USER event_ticketing WITH PASSWORD 'event_ticketing';"
-sudo -u postgres psql -c "CREATE DATABASE event_ticketing OWNER event_ticketing;"
-```
-
-The application connects over TCP (`localhost`), so `pg_hba.conf` must allow password login from
-127.0.0.1. Ubuntu's default host rule does.
+The port is published only on `127.0.0.1`, so other machines on the network cannot open it.
 
 ## Running the application
 
@@ -230,9 +207,10 @@ and prints that the database was not checked there. Test reports are uploaded wh
 | # | Milestone | Status |
 |---|---|---|
 | 1 | Project initialization | Done |
-| 2 | PostgreSQL connectivity, JPA, Flyway and Testcontainers | Done locally |
-| 3 | Dockerized PostgreSQL for everyday development | Next |
-| 4-13 | API conventions, users and security, venues, events and shows, seat inventory, bookings and concurrency, payments, caching and messaging, dashboard, production readiness | Planned |
+| 2 | PostgreSQL connectivity, JPA, Flyway and Testcontainers | Done |
+| 3 | Dockerized PostgreSQL for everyday development | Done locally |
+| 4 | Schema migrations and seed data | Next |
+| 5-14 | API conventions, users and security, venues, events and shows, seat inventory, bookings and concurrency, payments, caching and messaging, dashboard, production readiness | Planned |
 
 ## Known limitations
 
@@ -247,7 +225,8 @@ and prints that the database was not checked there. Test reports are uploaded wh
 - No authentication or authorization: every endpoint is public.
 - `booking-domain` still has no business types. `booking-service` has the connectivity check and no
   repositories yet.
-- Docker Compose is not set up. Milestone 3 adds it.
+- No business schema and no seed data yet. Milestone 4 adds them.
+- The application is not built into an image. Only PostgreSQL runs in Docker.
 
 ## Connection failures
 
@@ -259,4 +238,7 @@ and prints that the database was not checked there. Test reports are uploaded wh
 | `No migrations found` at WARN | Expected in this milestone. The directory `db/migration` is on the classpath and contains no versioned SQL yet. |
 | `Port 8080 was already in use` | Another copy is still running. Stop it, or set `SERVER_PORT`. |
 | Integration tests cannot find Docker | Start Docker Desktop, then run `.\scripts\verify.ps1` again. `.\scripts\test.ps1` does not need Docker. |
+| `port is already allocated` from `db-up` | Something else is using 5432. Stop it, or set `DB_HOST_PORT` and the same port inside `DB_URL`. |
+| `Docker is installed but the engine is not running` | Start Docker Desktop and run `.\scripts\db-up.ps1` again. |
+| Readiness is `DOWN` after `db-down` | Expected. The process was already up and the database then stopped. A fresh start with the database down exits instead, during Flyway. |
 | Readiness returns `{"status":"DOWN"}` | The process is up but a later connection or schema check failed. Read the server log for the SQLState. The HTTP body stays generic on purpose. |

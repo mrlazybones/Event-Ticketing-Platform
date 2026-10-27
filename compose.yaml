@@ -1,0 +1,28 @@
+# Local PostgreSQL only. The Spring Boot application runs on the host and connects through
+# 127.0.0.1 and DB_HOST_PORT. These values are local placeholders, not production credentials.
+name: event-ticketing
+
+services:
+  postgres:
+    image: postgres:17.11-alpine
+    container_name: event-ticketing-postgres
+    restart: unless-stopped
+    ports:
+      # Host interface, host port, container port. 127.0.0.1 keeps it off other machines.
+      - "127.0.0.1:${DB_HOST_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${DB_NAME:-event_ticketing}
+      POSTGRES_USER: ${DB_USERNAME:-event_ticketing}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-event_ticketing}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  postgres-data:
+    name: event-ticketing-postgres
